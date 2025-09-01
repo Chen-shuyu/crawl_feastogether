@@ -1,8 +1,7 @@
 package org.shuyu;
 
-
-import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -13,6 +12,7 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -22,15 +22,17 @@ public class BookingAutomation {
 
     private static final Logger logger = LoggerFactory.getLogger(BookingAutomation.class);
     private static final String BASE_URL = "https://www.feastogether.com.tw/";
-    private static final String BOOKING_URL = "https://www.feastogether.com.tw/booking/URBANPARADISE";
+    private static String BOOKING_URL = "";
+    private static final String BOOKING_URBANPARADISE_URL = "https://www.feastogether.com.tw/booking/URBANPARADISE";
+    private static final String BOOKING_Eatogether_URL = "https://www.feastogether.com.tw/booking/Eatogether";
 
     // 登入資訊 - 請修改為您的實際帳號
-    private static final String PHONE_NUMBER = "您的手機號碼";
-    private static final String PASSWORD = "您的密碼";
+    private static final String PHONE_NUMBER = "0972896698";
+    private static final String PASSWORD = "59205006";
 
     // 訂位資訊
     private static final String STORE_NAME = "信義店";
-    private static final String ADULT_COUNT = "2";
+    private static final String ADULT_COUNT = "4";
     private static final String MEAL_PERIOD = "晚餐";
     private static final String BOOKING_DATE = "2025/10/01";
 
@@ -48,7 +50,8 @@ public class BookingAutomation {
         try {
             logger.info("開始初始化 WebDriver...");
 
-            WebDriverManager.chromedriver().setup();
+//            WebDriverManager.chromedriver().setup();
+            System.setProperty("webdriver.chrome.driver", "drivers/chromedriver-win64/chromedriver.exe");
 
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--disable-blink-features=AutomationControlled");
@@ -57,6 +60,9 @@ public class BookingAutomation {
             options.addArguments("--disable-features=VizDisplayCompositor");
             options.addArguments("--no-sandbox");
             options.addArguments("--disable-dev-shm-usage");
+
+            // 如果需要無頭模式運行，取消下面註解
+//             options.addArguments("--headless");
 
             driver = new ChromeDriver(options);
             wait = new WebDriverWait(driver, 20);
@@ -79,7 +85,7 @@ public class BookingAutomation {
     public void executeBookingProcess() {
         try {
             // 步驟 1: 開啟首頁並登入
-            loginToWebsite();
+//            loginToWebsite();
 
             // 步驟 2: 導航到訂位頁面
             navigateToBookingPage();
@@ -91,7 +97,7 @@ public class BookingAutomation {
             fillBookingInformation();
 
             // 步驟 5: 點選搜尋
-            clickSearchButton();
+//            clickSearchButton();
 
             logger.info("訂位流程執行完成");
 
@@ -113,7 +119,7 @@ public class BookingAutomation {
         // 找到並點選"會員登入"按鈕
         WebElement loginButton = wait.until(
                 ExpectedConditions.elementToBeClickable(
-                        By.xpath("//a[contains(text(), '會員登入') or contains(text(), '登入')]")
+                        By.xpath("//button[contains(text(), '會員登入') or contains(text(), '登入')]")
                 )
         );
         loginButton.click();
@@ -141,7 +147,7 @@ public class BookingAutomation {
 
         // 點選登入按鈕
         WebElement submitButton = driver.findElement(
-                By.xpath("//button[contains(text(), '登入') or @type='submit']")
+                By.xpath("//button[contains(text(), '登入') and @type='submit']")
         );
         submitButton.click();
         logger.info("已點選登入按鈕");
@@ -166,15 +172,26 @@ public class BookingAutomation {
      */
     private void handleInfoModal() throws Exception {
         logger.info("檢查是否有說明彈窗...");
-
         try {
             // 尋找關閉按鈕 (X)
-            WebElement closeButton = wait.until(
-                    ExpectedConditions.elementToBeClickable(
-                            By.xpath("//button[contains(@class, 'close') or text()='×' or text()='X' or contains(@aria-label, 'Close')]")
-                    )
-            );
-            closeButton.click();
+            List<WebElement> allSvgs = driver.findElements(By.tagName("svg"));
+
+            // 先試第10個位置（快速方式）
+            if (allSvgs.size() > 10 && "CloseIcon".equals(allSvgs.get(10).getAttribute("data-testid"))) {
+                System.out.println("先試第10個位置（快速方式）");
+                JavascriptExecutor js = (JavascriptExecutor) driver;
+                js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", allSvgs.get(10));
+            } else {
+                System.out.println("如果第10個不是，再用遍歷方式");
+                // 如果第10個不是，再用遍歷方式
+                for (WebElement svg : allSvgs) {
+                    if ("CloseIcon".equals(svg.getAttribute("data-testid"))) {
+                        JavascriptExecutor js = (JavascriptExecutor) driver;
+                        js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", svg);
+                        break;
+                    }
+                }
+            }
             logger.info("已關閉說明彈窗");
             Thread.sleep(2000);
 
@@ -190,16 +207,16 @@ public class BookingAutomation {
         logger.info("開始填寫訂位資訊...");
 
         // 選擇店別
-        selectStore();
+//        selectStore();
 
         // 選擇成員數量
         selectAdultCount();
 
         // 選擇用餐餐期
-        selectMealPeriod();
+//        selectMealPeriod();
 
         // 選擇用餐時間
-        selectBookingDate();
+//        selectBookingDate();
 
         logger.info("訂位資訊填寫完成");
     }
@@ -245,26 +262,31 @@ public class BookingAutomation {
     private void selectAdultCount() throws Exception {
         logger.info("選擇成人數量: {}", ADULT_COUNT);
 
-        try {
-            WebElement adultSelect = driver.findElement(
-                    By.xpath("//select[contains(@name, 'adult') or contains(@id, 'adult') or contains(@name, 'member')]")
-            );
-            Select adultDropdown = new Select(adultSelect);
-            adultDropdown.selectByVisibleText(ADULT_COUNT + "位大人");
+        // 1. 點擊三角形展開人數選擇器
+        // 1.1 找到包含「位大人」的區域對應的 ArrowDropDownIcon
+        WebElement expandButton = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//div[contains(text(), '成員')]/following-sibling::*//svg[@data-testid='ArrowDropDownIcon']")
+                )
+        );//*[@id="booking-area"]/form/div/div[2]/div[2]/div[2]/div[1]/svg
+        System.out.println("找到元素 ");
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", expandButton);
+        Thread.sleep(500);
 
-        } catch (Exception e1) {
-            try {
-                WebElement adultOption = driver.findElement(
-                        By.xpath("//option[contains(text(), '" + ADULT_COUNT + "位大人')]")
-                );
-                adultOption.click();
+        // 2. 找到成人的+按鈕，點擊到目標人數
+        WebElement plusButton = wait.until(
+                ExpectedConditions.elementToBeClickable(
+                        By.xpath("//div[contains(text(), '大人')]/following-sibling::*//button[contains(text(), '+')]")
+                )
+        );
 
-            } catch (Exception e2) {
-                logger.warn("無法選擇成人數量，將嘗試其他方法");
-            }
+        // 假設預設是2人，需要點擊 (ADULT_COUNT - 1) 次
+        for (int i = 2; i < Integer.parseInt(ADULT_COUNT); i++) {
+            plusButton.click();
+            Thread.sleep(200);
         }
 
-        Thread.sleep(1000);
         logger.info("成人數量選擇完成");
     }
 
@@ -376,6 +398,12 @@ public class BookingAutomation {
             if (PHONE_NUMBER.equals("您的手機號碼") || PASSWORD.equals("您的密碼")) {
                 logger.error("請先在程式中設定正確的手機號碼和密碼");
                 return;
+            }
+
+            if (args[0].equals("UP")){
+                BOOKING_URL = BOOKING_URBANPARADISE_URL;
+            } else {
+                BOOKING_URL = BOOKING_Eatogether_URL;
             }
 
             automation = new BookingAutomation();

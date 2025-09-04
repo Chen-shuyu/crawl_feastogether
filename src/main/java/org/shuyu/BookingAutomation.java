@@ -6,12 +6,13 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.shuyu.util.CaptchaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -21,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class BookingAutomation {
 
     private static final Logger logger = LoggerFactory.getLogger(BookingAutomation.class);
-    private static final String BASE_URL = "https://www.feastogether.com.tw/";
+    private static final String BASE_URL = "https://www.feastogether.com.tw/booking/Eatogether";
     private static String BOOKING_URL = "";
     private static final String BOOKING_URBANPARADISE_URL = "https://www.feastogether.com.tw/booking/URBANPARADISE";
     private static final String BOOKING_Eatogether_URL = "https://www.feastogether.com.tw/booking/Eatogether";
@@ -34,13 +35,26 @@ public class BookingAutomation {
     private static final String STORE_NAME = "信義店";
     private static final String ADULT_COUNT = "4";
     private static final String MEAL_PERIOD = "晚餐";
-    private static final String BOOKING_DATE = "2025/10/01";
+    private static final String BOOKING_DATE = "20250909";
+    private static final String BOOKING_TIME = "17:30";
+    private static final String BOOKING_YEAR = BOOKING_DATE.substring(0, 4);
+    private static final String BOOKING_MONTH = BOOKING_DATE.substring(4, 6);
+    private static final String BOOKING_DAY = BOOKING_DATE.substring(6);
+    private static final String BOOKING_YYYY_MM = BOOKING_YEAR + "-" + BOOKING_MONTH;
+    private static final String BOOKING_YYYY_MM_DD = toYyyyMmDd(BOOKING_YEAR, BOOKING_MONTH, BOOKING_DAY);
+
 
     private WebDriver driver;
     private WebDriverWait wait;
 
     public BookingAutomation() {
         initializeDriver();
+    }
+
+    private static String toYyyyMmDd(String bookingYear, String bookingMonth, String bookingDay) {
+        String month = Integer.parseInt(bookingMonth) < 10 ? bookingMonth.substring(1) : bookingMonth;
+        String day = Integer.parseInt(bookingDay) < 10 ? bookingDay.substring(1) : bookingDay;
+        return bookingYear + "年" + month + "月" + day + "日";
     }
 
     /**
@@ -85,19 +99,19 @@ public class BookingAutomation {
     public void executeBookingProcess() {
         try {
             // 步驟 1: 開啟首頁並登入
-//            loginToWebsite();
+            loginToWebsite();
 
             // 步驟 2: 導航到訂位頁面
-            navigateToBookingPage();
+//            navigateToBookingPage();
 
-            // 步驟 3: 處理說明頁面彈窗
-            handleInfoModal();
+            // 步驟 3: 處理說明頁面彈窗 (改去 loginToWebsite)
+//            handleInfoModal();
 
             // 步驟 4: 填寫訂位資訊
             fillBookingInformation();
 
             // 步驟 5: 點選搜尋
-//            clickSearchButton();
+            clickSearchButton();
 
             logger.info("訂位流程執行完成");
 
@@ -114,7 +128,10 @@ public class BookingAutomation {
 
         // 開啟首頁
         driver.get(BASE_URL);
-        Thread.sleep(3000);
+        Thread.sleep(1500);
+
+        // 處理說明頁面彈窗
+        handleInfoModal();
 
         // 找到並點選"會員登入"按鈕
         WebElement loginButton = wait.until(
@@ -125,7 +142,7 @@ public class BookingAutomation {
         loginButton.click();
         logger.info("已點選會員登入按鈕");
 
-        Thread.sleep(2000);
+        Thread.sleep(500);
 
         // 輸入手機號碼
         WebElement phoneInput = wait.until(
@@ -153,7 +170,7 @@ public class BookingAutomation {
         logger.info("已點選登入按鈕");
 
         // 等待登入完成（檢查頁面變化）
-        Thread.sleep(5000);
+        Thread.sleep(1000);
         logger.info("登入流程完成");
     }
 
@@ -163,7 +180,7 @@ public class BookingAutomation {
     private void navigateToBookingPage() throws Exception {
         logger.info("導航到訂位頁面: {}", BOOKING_URL);
         driver.get(BOOKING_URL);
-        Thread.sleep(3000);
+        Thread.sleep(500);
         logger.info("已進入訂位頁面");
     }
 
@@ -193,7 +210,7 @@ public class BookingAutomation {
                 }
             }
             logger.info("已關閉說明彈窗");
-            Thread.sleep(2000);
+            Thread.sleep(500);
 
         } catch (Exception e) {
             logger.info("未發現說明彈窗或已關閉");
@@ -207,16 +224,22 @@ public class BookingAutomation {
         logger.info("開始填寫訂位資訊...");
 
         // 選擇店別
-//        selectStore();
+        selectStore();
 
         // 選擇成員數量
         selectAdultCount();
 
         // 選擇用餐餐期
-//        selectMealPeriod();
+        selectMealPeriod();
 
         // 選擇用餐時間
-//        selectBookingDate();
+        selectBookingDate();
+
+        // 輸入驗證碼
+        fillCaptchaPng();
+
+        // 送出訂位資訊
+        submitBookingInfo();
 
         logger.info("訂位資訊填寫完成");
     }
@@ -229,11 +252,22 @@ public class BookingAutomation {
 
         try {
             // 方法1: 嘗試下拉選單
-            WebElement storeSelect = driver.findElement(
-                    By.xpath("//select[contains(@name, 'store') or contains(@id, 'store')]")
+            WebElement storeButton = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.xpath("//div[text()= '店別']/parent::div/div[not(text())]/div")
+                    )
             );
-            Select storeDropdown = new Select(storeSelect);
-            storeDropdown.selectByVisibleText(STORE_NAME);
+
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", storeButton);
+            Thread.sleep(500);
+            WebElement storeSelect = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.xpath("//div[text()= '店別']/parent::div/div[not(text())]//div[text()= '" + STORE_NAME + "']")
+                    )
+            );
+            storeSelect.click();
+
 
         } catch (Exception e1) {
             try {
@@ -266,10 +300,9 @@ public class BookingAutomation {
         // 1.1 找到包含「位大人」的區域對應的 ArrowDropDownIcon
         WebElement expandButton = wait.until(
                 ExpectedConditions.presenceOfElementLocated(
-                        By.xpath("//div[contains(text(), '成員')]/following-sibling::*//svg[@data-testid='ArrowDropDownIcon']")
+                        By.xpath("//div[contains(@defualt, '位大人')]")
                 )
-        );//*[@id="booking-area"]/form/div/div[2]/div[2]/div[2]/div[1]/svg
-        System.out.println("找到元素 ");
+        );
         JavascriptExecutor js = (JavascriptExecutor) driver;
         js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", expandButton);
         Thread.sleep(500);
@@ -277,16 +310,16 @@ public class BookingAutomation {
         // 2. 找到成人的+按鈕，點擊到目標人數
         WebElement plusButton = wait.until(
                 ExpectedConditions.elementToBeClickable(
-                        By.xpath("//div[contains(text(), '大人')]/following-sibling::*//button[contains(text(), '+')]")
+                        By.xpath("//label[text()=\"大人\"]/parent::div//button[text()=\"+\"]")
                 )
         );
 
+        // TO_DO：之後可以做小於兩人要按'-'號
         // 假設預設是2人，需要點擊 (ADULT_COUNT - 1) 次
         for (int i = 2; i < Integer.parseInt(ADULT_COUNT); i++) {
             plusButton.click();
             Thread.sleep(200);
         }
-
         logger.info("成人數量選擇完成");
     }
 
@@ -297,12 +330,22 @@ public class BookingAutomation {
         logger.info("選擇用餐餐期: {}", MEAL_PERIOD);
 
         try {
-            WebElement mealSelect = driver.findElement(
-                    By.xpath("//select[contains(@name, 'meal') or contains(@id, 'meal') or contains(@name, 'period')]")
+            WebElement mealButton = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.xpath("//div[text()= '用餐餐期']/parent::div/div[text()!= '用餐餐期']")
+                    )
             );
-            Select mealDropdown = new Select(mealSelect);
-            mealDropdown.selectByVisibleText(MEAL_PERIOD);
 
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", mealButton);
+            Thread.sleep(500);
+
+            WebElement mealSelect = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.xpath("//*[@role='menuitem' and text()='" + MEAL_PERIOD + "']")
+                    )
+            );
+            mealSelect.click();
         } catch (Exception e1) {
             try {
                 WebElement mealOption = driver.findElement(
@@ -315,7 +358,7 @@ public class BookingAutomation {
             }
         }
 
-        Thread.sleep(1000);
+        Thread.sleep(500);
         logger.info("用餐餐期選擇完成");
     }
 
@@ -327,11 +370,25 @@ public class BookingAutomation {
 
         try {
             // 尋找日期輸入欄位
-            WebElement dateInput = driver.findElement(
-                    By.xpath("//input[@type='date' or contains(@name, 'date') or contains(@id, 'date')]")
+            WebElement dateButton = driver.findElement(
+                    By.xpath("//div[text()= '用餐時間']/parent::div/div[text() != '用餐時間']/div/div[@defualt]")
             );
-            dateInput.clear();
-            dateInput.sendKeys(BOOKING_DATE);
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", dateButton);
+            Thread.sleep(500);
+
+            // 尋找日期輸入欄位
+            WebElement dateSelect = driver.findElement(
+                    By.xpath("//div[contains(@aria-label,'" + BOOKING_YYYY_MM + "')]//div[contains(@aria-label,'" + BOOKING_YYYY_MM_DD + "')]")
+            );
+            js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", dateSelect);
+            Thread.sleep(500);
+
+            // 尋找時間
+            WebElement timeSelect = driver.findElement(
+                    By.xpath("//button[text()='立即訂位']/parent::div//button[text()='" + BOOKING_TIME + "']")
+            );
+            js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", timeSelect);
 
         } catch (Exception e1) {
             try {
@@ -349,7 +406,7 @@ public class BookingAutomation {
             }
         }
 
-        Thread.sleep(1000);
+        Thread.sleep(500);
         logger.info("訂位日期選擇完成");
     }
 
@@ -357,23 +414,58 @@ public class BookingAutomation {
      * 點選搜尋按鈕
      */
     private void clickSearchButton() throws Exception {
-        logger.info("尋找並點選搜尋按鈕...");
+        logger.info("進入訂位 確認頁面...");
 
         try {
-            WebElement searchButton = wait.until(
+            WebElement agreeCheckButton = wait.until(
                     ExpectedConditions.elementToBeClickable(
-                            By.xpath("//button[contains(text(), '搜尋') or contains(text(), '查詢') or @type='submit']")
+                            By.xpath("//label[contains(.,'我已閱讀並同意上述政策')]")
                     )
             );
-            searchButton.click();
-            logger.info("已點選搜尋按鈕");
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript("arguments[0].click();", agreeCheckButton);
+
+            WebElement submitButton = wait.until(
+                    ExpectedConditions.elementToBeClickable(
+                            By.xpath("//button[text()='送出訂位']")
+                    )
+            );
+            js.executeScript("arguments[0].click();", submitButton);
 
             // 等待搜尋結果載入
-            Thread.sleep(5000);
+            Thread.sleep(500);
 
         } catch (Exception e) {
             logger.error("無法找到搜尋按鈕: {}", e.getMessage());
         }
+    }
+
+
+    /**
+     * 處理驗證碼
+     */
+    private void fillCaptchaPng() {
+
+        // 2. OCR 辨識
+        String result = CaptchaUtil.recognizeCaptcha(
+                new File("captcha.png"),
+                "src/main/resources/tessdata" // tessdata 路徑
+        );
+
+        System.out.println("辨識結果: " + result);
+    }
+
+    /**
+     * 按下 立即訂位
+     */
+    private void submitBookingInfo() {
+
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        // 尋找立即訂位按鈕
+        WebElement bookingButton = driver.findElement(
+                By.xpath("//button[text()='立即訂位']")
+        );
+        js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", bookingButton);
     }
 
     /**
@@ -400,7 +492,7 @@ public class BookingAutomation {
                 return;
             }
 
-            if (args[0].equals("UP")){
+            if (args[0].equals("UP")) {
                 BOOKING_URL = BOOKING_URBANPARADISE_URL;
             } else {
                 BOOKING_URL = BOOKING_Eatogether_URL;
@@ -421,4 +513,5 @@ public class BookingAutomation {
             }
         }
     }
+
 }
